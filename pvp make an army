@@ -1,0 +1,370 @@
+-- ============================================
+--  MAKE AN ARMY | БАЗЫ + ОХОТА (АВТО-СБОР БУСТОВ)
+--  🔥 Make an Army | Red VS Blue
+--  Версия: 3.0 (С АВТО-СБОРОМ БУСТОВ)
+-- ============================================
+
+-- Загрузка библиотеки Rayfield
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local localPlayer = Players.LocalPlayer
+
+local Window = Rayfield:CreateWindow({
+   Name = "Make an Army | Базы + Охота + Бусты",
+   LoadingTitle = "Загрузка скрипта...",
+   LoadingSubtitle = "Red vs Blue Ultimate",
+   ConfigurationSaving = { Enabled = false },
+   KeySystem = false,
+})
+
+-- Создаем вкладки
+local TabBases = Window:CreateTab("Базы", 4483362458)
+local TabHunter = Window:CreateTab("Охота", 4483362458)
+local TabBoosts = Window:CreateTab("Бусты", 4483362458)  -- Новая вкладка
+
+-- Координаты баз (на 24 блока ниже для идеальной фиксации под текстурами)
+local redBase = Vector3.new(42, -24, 425)
+local blueBase = Vector3.new(40, -24, -390)
+
+-- Переменные для охоты
+local targetPlayer = nil
+local hunting = false
+
+-- Переменные для бустов
+local boostActive = false
+local collectActive = false
+local collectDelay = 0.1
+
+-- Функция безопасной телепортации
+local function teleportUnder(pos)
+   if localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+      local root = localPlayer.Character.HumanoidRootPart
+      root.CFrame = CFrame.new(pos)
+      root.Anchored = true -- Фиксируем под картой
+   end
+end
+
+-- ============================================
+--  📦 ФУНКЦИЯ СБОРА БУСТА
+-- ============================================
+local function CollectBoost(part)
+    pcall(function()
+        -- Способ 1: Нажатие клавиши E
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+        task.wait(0.05)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+
+        -- Способ 2: Клик по бусту
+        local click = part:FindFirstChild("ClickDetector")
+        if click then
+            click:Click()
+        end
+
+        -- Способ 3: RemoteEvent
+        local collectRemote = ReplicatedStorage:FindFirstChild("Remotes"):FindFirstChild("CollectBoost")
+        if collectRemote then
+            collectRemote:FireServer(part)
+        end
+
+        -- Способ 4: Обновление значения
+        local boostValue = part:FindFirstChild("BoostValue")
+        if boostValue then
+            boostValue.Value = true
+        end
+    end)
+end
+
+-- ============================================
+--  🔄 АВТО-СБОР БУСТОВ
+-- ============================================
+local function AutoCollectBoosts()
+    print("📦 Запуск авто-сбора бустов...")
+
+    while collectActive do
+        local boostsFolder = Workspace:FindFirstChild("Map")
+        if boostsFolder then
+            boostsFolder = boostsFolder:FindFirstChild("Boosts")
+        end
+
+        if not boostsFolder then
+            print("❌ Папка Boosts не найдена!")
+            collectActive = false
+            break
+        end
+
+        local boostParts = {}
+        for _, obj in pairs(boostsFolder:GetDescendants()) do
+            if obj:IsA("BasePart") and obj.Name:find("Boost") then
+                table.insert(boostParts, obj)
+            end
+        end
+
+        if #boostParts == 0 then
+            print("❌ Бусты не найдены!")
+            collectActive = false
+            break
+        end
+
+        print("💎 Найдено бустов: " .. #boostParts)
+
+        for _, part in pairs(boostParts) do
+            if not collectActive then break end
+
+            -- Телепорт к бусту
+            local char = localPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                char.HumanoidRootPart.CFrame = part.CFrame + Vector3.new(0, 2, 0)
+                task.wait(0.1)
+            end
+
+            -- Сбор буста
+            CollectBoost(part)
+            task.wait(collectDelay)
+        end
+
+        task.wait(0.5)
+    end
+end
+
+-- ============================================
+--  🔄 ФАРМ БУСТОВ (ТЕЛЕПОРТЫ)
+-- ============================================
+local function FarmBoosts()
+    print("💎 Запуск фарма бустов...")
+
+    while boostActive do
+        local boostsFolder = Workspace:FindFirstChild("Map")
+        if boostsFolder then
+            boostsFolder = boostsFolder:FindFirstChild("Boosts")
+        end
+
+        if not boostsFolder then
+            print("❌ Папка Boosts не найдена!")
+            boostActive = false
+            break
+        end
+
+        local boostParts = {}
+        for _, obj in pairs(boostsFolder:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                table.insert(boostParts, obj)
+            end
+        end
+
+        if #boostParts == 0 then
+            print("❌ Бусты не найдены!")
+            boostActive = false
+            break
+        end
+
+        print("💎 Найдено бустов: " .. #boostParts)
+
+        for _, part in pairs(boostParts) do
+            if not boostActive then break end
+
+            local char = localPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                char.HumanoidRootPart.CFrame = part.CFrame + Vector3.new(0, 3, 0)
+                print("📍 ТП к бусту: " .. part.Name)
+            end
+
+            task.wait(0.000000001)
+        end
+
+        task.wait(0.000000001)
+    end
+end
+
+-- ============================================
+--  📌 ВКЛАДКА 1: БАЗЫ
+-- ============================================
+
+TabBases:CreateButton({
+   Name = "ТП под Красную базу",
+   Callback = function()
+      hunting = false
+      teleportUnder(redBase)
+      Rayfield:Notify({ Title = "Телепорт", Content = "Ты под Красной базой!", Duration = 3 })
+   end,
+})
+
+TabBases:CreateButton({
+   Name = "ТП под Синюю базу",
+   Callback = function()
+      hunting = false
+      teleportUnder(blueBase)
+      Rayfield:Notify({ Title = "Телепорт", Content = "Ты под Синей базой!", Duration = 3 })
+   end,
+})
+
+TabBases:CreateButton({
+   Name = "Спавн юнита (вручную)",
+   Callback = function()
+      pcall(function()
+         ReplicatedStorage.Remotes.SpawnPet:FireServer(localPlayer.EquippedNPCs.Normal)
+      end)
+   end,
+})
+
+TabBases:CreateButton({
+   Name = "Разморозиться (Двигаться)",
+   Callback = function()
+      if localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+         localPlayer.Character.HumanoidRootPart.Anchored = false
+         Rayfield:Notify({ Title = "Движение", Content = "Персонаж разморожен!", Duration = 2 })
+      end
+   end,
+})
+
+-- ============================================
+--  📌 ВКЛАДКА 2: ОХОТА
+-- ============================================
+
+local PlayerDropdown = TabHunter:CreateDropdown({
+   Name = "Выбери игрока для преследования",
+   Options = {},
+   CurrentOption = "",
+   Callback = function(Option)
+      targetPlayer = Players:FindFirstChild(Option)
+   end,
+})
+
+-- Авто-обновление списка игроков
+task.spawn(function()
+   while true do
+      local names = {}
+      for _, p in pairs(Players:GetPlayers()) do
+         if p ~= localPlayer then 
+            table.insert(names, p.Name) 
+         end
+      end
+      PlayerDropdown:Refresh(names, true)
+      task.wait(3)
+   end
+end)
+
+TabHunter:CreateToggle({
+   Name = "Следовать за игроком под картой",
+   CurrentValue = false,
+   Callback = function(Value)
+      hunting = Value
+      if Value then
+         Rayfield:Notify({ Title = "Охота", Content = "Режим слежки ВКЛЮЧЕН", Duration = 2 })
+      else
+         Rayfield:Notify({ Title = "Охота", Content = "Режим слежки ВЫКЛЮЧЕН", Duration = 2 })
+      end
+   end,
+})
+
+-- Фоновый поток для преследования
+task.spawn(function()
+   while true do
+      task.wait(0.2)
+      if hunting and targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+         local root = localPlayer.Character.HumanoidRootPart
+         local targetPos = targetPlayer.Character.HumanoidRootPart.Position
+
+         root.CFrame = CFrame.new(targetPos.X, targetPos.Y - 24, targetPos.Z)
+         root.Anchored = true
+      end
+   end
+end)
+
+-- ============================================
+--  📌 ВКЛАДКА 3: БУСТЫ (НОВАЯ)
+-- ============================================
+
+TabBoosts:CreateToggle({
+   Name = "🔄 ТП ФАРМ (Телепорт по бустам)",
+   CurrentValue = false,
+   Callback = function(value)
+      boostActive = value
+      if boostActive then
+         print("✅ ТП-фарм запущен!")
+         task.spawn(FarmBoosts)
+         Rayfield:Notify({ Title = "ТП Фарм", Content = "Запущен!", Duration = 2 })
+      else
+         print("🛑 ТП-фарм остановлен!")
+         Rayfield:Notify({ Title = "ТП Фарм", Content = "Остановлен!", Duration = 2 })
+      end
+   end,
+})
+
+TabBoosts:CreateToggle({
+   Name = "📦 АВТО-СБОР БУСТОВ (Сбор + клик)",
+   CurrentValue = false,
+   Callback = function(value)
+      collectActive = value
+      if collectActive then
+         print("✅ Авто-сбор бустов запущен!")
+         task.spawn(AutoCollectBoosts)
+         Rayfield:Notify({ Title = "Авто-сбор", Content = "Запущен!", Duration = 2 })
+      else
+         print("🛑 Авто-сбор бустов остановлен!")
+         Rayfield:Notify({ Title = "Авто-сбор", Content = "Остановлен!", Duration = 2 })
+      end
+   end,
+})
+
+TabBoosts:CreateButton({
+   Name = "💎 Собрать буст вручную (ближайший)",
+   Callback = function()
+      local char = localPlayer.Character
+      if char then
+         local root = char:FindFirstChild("HumanoidRootPart")
+         if root then
+            local nearest = nil
+            local nearestDist = 100
+
+            local boostsFolder = Workspace:FindFirstChild("Map")
+            if boostsFolder then
+               boostsFolder = boostsFolder:FindFirstChild("Boosts")
+            end
+
+            if boostsFolder then
+               for _, obj in pairs(boostsFolder:GetDescendants()) do
+                  if obj:IsA("BasePart") and obj.Name:find("Boost") then
+                     local dist = (obj.Position - root.Position).Magnitude
+                     if dist < nearestDist then
+                        nearestDist = dist
+                        nearest = obj
+                     end
+                  end
+               end
+            end
+
+            if nearest then
+               root.CFrame = nearest.CFrame + Vector3.new(0, 2, 0)
+               task.wait(0.2)
+               CollectBoost(nearest)
+               Rayfield:Notify({ Title = "Сбор", Content = "Буст собран!", Duration = 2 })
+               print("✅ Ближайший буст собран!")
+            else
+               Rayfield:Notify({ Title = "Ошибка", Content = "Бусты не найдены!", Duration = 2 })
+               print("❌ Бусты не найдены!")
+            end
+         end
+      end
+   end,
+})
+
+TabBoosts:CreateInput({
+   Name = "⏱️ Задержка между бустами (сек)",
+   Placeholder = "0.1",
+   Callback = function(v)
+      collectDelay = tonumber(v) or 0.1
+      print("⏱️ Задержка установлена: " .. collectDelay .. " сек")
+      Rayfield:Notify({ Title = "Настройка", Content = "Задержка: " .. collectDelay .. " сек", Duration = 2 })
+   end,
+})
+
+-- ============================================
+--  🎉 ФИНАЛ
+-- ============================================
+
+Rayfield:Notify({ Title = "Готово!", Content = "Все функции объединены.", Duration = 3 })
+print("✅ Make an Army | Базы + Охота + Бусты загружен!")
+print("📌 Вкладки: Базы | Охота | Бусты")
